@@ -11,7 +11,7 @@ url <- 'https://www.zillow.com/homes/for_sale/house_type/?searchQueryState=%7B%2
 page <- read_html(url)
 
 houses <- page %>%
-  html_nodes('.PaginationNumberItem-c11n-8-27-0__bnmlxt-0 bIIHfk') %>%
+  html_nodes('.PaginationNumberItem-c11n-8-27-0__bnmlxt-0.bIIHfk') %>%
   html_node('a') %>%
   html_attr('href')
 
