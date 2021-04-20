@@ -134,6 +134,7 @@ for(i in all_houses){
 
 write.csv(house,"C:/Users/Karlee Scott/OneDrive - West Point/AY 21-2/SE370 Computer Aided Design/house.csv")
 
+#https://www.r-bloggers.com/2019/11/geocoding-with-tidygeocoder/
 #get latitude and longitude from address
 library(tidygeocoder)
 dc_addresses <- tribble( ~name,~addr,
