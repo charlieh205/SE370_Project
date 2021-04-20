@@ -128,9 +128,10 @@ for(i in all_houses){
     html_node(xpath = '//*[@id="ds-data-view"]/ul/li[5]/div/div/div[1]/ul/li[6]/span[2]') %>%
     html_text()
   #acres <- append(acres,my_acres)
-  my_house <- c(my_address,my_price,my_bed,my_bath,my_ft,my_hunter_time,my_stewart_time,my_year,my_HOA,my_acres)
+  my_house <- cbind(as.character(my_address),as.character(my_price),as.numeric(as.character(my_bed)),as.numeric(as.character(my_bath)),as.character(my_ft),as.character(my_hunter_time),as.character(my_stewart_time),as.numeric(as.character(my_year)),as.character(my_HOA),as.character(my_acres))
   house <- rbind(house,my_house)
 }
 
+write.csv(house,"C:/Users/Karlee Scott/OneDrive - West Point/AY 21-2/SE370 Computer Aided Design/house.csv")
 
   
