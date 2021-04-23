@@ -4,7 +4,6 @@ library(dplyr)
 #dynamic webpages
 library(RSelenium)
 
-
 #---Web crawling
 URL <-'https://www.zillow.com/homes/for_sale/house_type/?searchQueryState=%7B%22pagination%22%3A%7B%7D%2C%22usersSearchTerm%22%3A%22Richmond%20Hill%2C%20GA%22%2C%22mapBounds%22%3A%7B%22west%22%3A-81.7041200244537%2C%22east%22%3A-80.90074478031308%2C%22south%22%3A31.739848779394055%2C%22north%22%3A32.20699314959706%7D%2C%22mapZoom%22%3A11%2C%22isMapVisible%22%3Atrue%2C%22filterState%22%3A%7B%22price%22%3A%7B%22max%22%3A250000%7D%2C%22con%22%3A%7B%22value%22%3Afalse%7D%2C%22apa%22%3A%7B%22value%22%3Afalse%7D%2C%22mf%22%3A%7B%22value%22%3Afalse%7D%2C%22ac%22%3A%7B%22value%22%3Atrue%7D%2C%22mp%22%3A%7B%22max%22%3A819%7D%2C%22ah%22%3A%7B%22value%22%3Atrue%7D%2C%22sort%22%3A%7B%22value%22%3A%22globalrelevanceex%22%7D%2C%22land%22%3A%7B%22value%22%3Afalse%7D%2C%22tow%22%3A%7B%22value%22%3Afalse%7D%2C%22manu%22%3A%7B%22value%22%3Afalse%7D%2C%22apco%22%3A%7B%22value%22%3Afalse%7D%7D%2C%22isListVisible%22%3Atrue%7D'
 url_front <- 'https://www.zillow.com'
@@ -131,8 +130,6 @@ for(i in all_houses){
   my_house <- cbind(as.character(my_address),as.character(my_price),as.numeric(as.character(my_bed)),as.numeric(as.character(my_bath)),as.character(my_ft),as.character(my_hunter_time),as.character(my_stewart_time),as.numeric(as.character(my_year)),as.character(my_HOA),as.character(my_acres))
   house <- rbind(house,my_house)
 }
-
-write.csv(house,"C:/Users/Karlee Scott/OneDrive - West Point/AY 21-2/SE370 Computer Aided Design/house.csv")
 
 house <- read.csv("C:/Users/Karlee Scott/OneDrive - West Point/AY 21-2/SE370 Computer Aided Design/house.csv") 
 house <- house[,-1]
@@ -286,4 +283,79 @@ for(r in 1:nrow(house1)){
   house1[r,"value"] <-  house1[r,"value"]/weight
 }
 
+rD <- rsDriver(browser="firefox", port = 2314L, geckover = "latest")
+remDr <- rD[["client"]]
+URL <-"https://www.latlong.net/"
+remDr$navigate(URL)
+#log into my account
+for(r in 1:nrow(house1)){
+  print(r)
+  randsleep <- sample(seq(1, 2, by = 0.01), 1)
+  Sys.sleep(randsleep)
+  
+  address_field <- remDr$findElement(using = 'xpath', value = '//*[@id="place"]')
+  address_field$sendKeysToElement(list(as.character(house1[r,"address"])))
+  
+  find <- remDr$findElement(using = 'xpath', value = '//*[@id="btnfind"]')
+  #https://stackoverflow.com/questions/51887807/click-button-via-rselenium
+  #how to click a button
+  find$clickElement()
+  
+  latitude <- remDr$findElement(using = 'xpath', value = '//*[@id="lat"]')
+  #https://stackoverflow.com/questions/46021890/rselenium-get-text-from-result-form
+  #how to get the value from an element
+  latitude <- latitude$getElementAttribute("value")
+  
+  longitude <- remDr$findElement(using = 'xpath', value = '//*[@id="lng"]')
+  longitude <- longitude$getElementAttribute("value")
+  
+  address_field <- remDr$findElement(using = 'xpath', value = '//*[@id="place"]')
+  #https://stackoverflow.com/questions/51072341/rselenium-clear-input-field/51074636
+  #how to clear input
+  address_field$clearElement()
+  
+  house1[r,"latitude"] <- as.numeric(latitude[[1]])
+  house1[r,"longitude"] <- as.numeric(longitude[[1]])
+}
+
+badaddress <- c()
+row <- c()
+for(r in 1:nrow(house1)){
+  if(house1[r,"latitude"]==0){
+    row <- append(row,r,after=length(row))
+    badaddress <- append(badaddress,as.character(house1[r,"address"]),after = length(badaddress))
+  }
+}
+
+#almost all are buildable plans with no price or specific location thus we will remove them
+house1 <- house1[-row,]
+
+#classify price and value by high, medium, and low
+price_bins <- quantile(house1[,"list_price"], c(.33, .66, 1), na.rm = TRUE) 
+value_bins <- quantile(house1[,"value"], c(.33, .66, 1), na.rm = TRUE)  
+for(r in 1:nrow(house1)){
+  if(is.na(house1[r,"list_price"])==FALSE){
+    if(house1[r,"list_price"]<=as.numeric(price_bins[1])){
+      house1[r,"price_category"]<- "low"
+    }
+    else if(house1[r,"list_price"]>as.numeric(price_bins[1]) && house1[r,"list_price"]<=as.numeric(price_bins[2])){
+      house1[r,"price_category"]<- "med"
+    }
+    else{
+      house1[r,"price_category"]<- "high"
+    }
+  }
+  
+  if(house1[r,"value"]<=as.numeric(value_bins[1])){
+    house1[r,"value_category"]<- "low"
+    }
+  else if(house1[r,"value"]>as.numeric(value_bins[1]) && house1[r,"value"]<=as.numeric(value_bins[2])){
+    house1[r,"value_category"]<- "med"
+  }
+  else{
+    house1[r,"value_category"]<- "high"
+  }
+}
+
 write.csv(house1,"C:/Users/Karlee Scott/OneDrive - West Point/AY 21-2/SE370 Computer Aided Design/value_house.csv")
+
