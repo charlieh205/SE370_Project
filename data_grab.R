@@ -134,9 +134,156 @@ for(i in all_houses){
 
 write.csv(house,"C:/Users/Karlee Scott/OneDrive - West Point/AY 21-2/SE370 Computer Aided Design/house.csv")
 
-#https://stackoverflow.com/questions/44527893/how-can-i-get-latitude-and-longitude-from-an-address-with-r
-#get latitude and longitude from address
-library(ggmap)
-locs <- c('Jiron Cuzco 423, Magdalena del Mar', 'Av Nicolas Arriola 500, La Victoria')
-geocode(locs)
-  
+house <- read.csv("C:/Users/Karlee Scott/OneDrive - West Point/AY 21-2/SE370 Computer Aided Design/house.csv") 
+house <- house[,-1]
+colnames(house) <- c("address","price","bed","bathroom","footage","hunter_time","stewart_time","year","HOA","acres")
+house1 <- house
+
+#filter HOA to form usable data for value function
+
+#https://stackoverflow.com/questions/10128617/test-if-characters-are-in-a-string
+#check if substring is contained in string
+for (r in 1:nrow(house1)){
+  if(grepl("HOA", house1[r,"HOA"], fixed=TRUE)==TRUE){
+    if(grepl("No", house1[r,"HOA"], fixed=TRUE)==TRUE){
+      house1[r,"HOA_price"] <- 0
+    }
+    else if(grepl("monthly", house1[r,"HOA"], fixed=TRUE)==TRUE){
+      noComma <- gsub(',','',house1[r,"HOA"])
+#https://statisticsglobe.com/extract-numbers-from-character-string-vector-in-r
+#extract number from a string
+      house1[r,"HOA_price"] <- as.numeric(regmatches(noComma, gregexpr("[[:digit:]]+", noComma)))*12
+    }
+    else if(grepl("quarterly", house1[r,"HOA"], fixed=TRUE)==TRUE){
+      noComma <- gsub(',','',house1[r,"HOA"])
+      #https://statisticsglobe.com/extract-numbers-from-character-string-vector-in-r
+      #extract number from a string
+      house1[r,"HOA_price"] <- as.numeric(regmatches(noComma, gregexpr("[[:digit:]]+", noComma)))*4
+    }
+    else{
+      noComma <- gsub(',','',house1[r,"HOA"])
+      #https://statisticsglobe.com/extract-numbers-from-character-string-vector-in-r
+      #extract number from a string
+      house1[r,"HOA_price"] <- as.numeric(regmatches(noComma, gregexpr("[[:digit:]]+", noComma)))
+    }
+      
+  }
+  else{
+    house1[r,"HOA_price"] <- NA
+  }
+}
+
+#filter acres to form usable data for value function
+for (r in 1:nrow(house1)){
+  if(grepl("Acres", house1[r,"acres"], fixed=TRUE)==TRUE){
+      noPeriod <- gsub('[.]','',house1[r,"acres"])
+      house1[r,"num_acres"] <- as.numeric(regmatches(noPeriod, gregexpr("[[:digit:]]+", noPeriod)))/100
+  }
+  else{
+    house1[r,"num_acres"] <- NA
+  }
+}
+
+#filter hunter and stewart time to form usable data for value function
+for (r in 1:nrow(house1)){
+  if(grepl("mins", house1[r,"hunter_time"], fixed=TRUE)==TRUE){
+    if(grepl("hour", house1[r,"hunter_time"], fixed=TRUE)==TRUE){
+      hr_min <- unlist(regmatches(house1[r,"hunter_time"], gregexpr("[[:digit:]]+", house1[r,"hunter_time"])))
+      house1[r,"hunter_mins"] <- as.numeric(hr_min[1])*60+as.numeric(hr_min[2])
+    }
+    else{
+      house1[r,"hunter_mins"] <- as.numeric(gsub(' mins','',house1[r,"hunter_time"]))
+    }
+  }
+  else{
+    house1[r,"hunter_mins"] <- NA
+  }
+  if(grepl("mins", house1[r,"stewart_time"], fixed=TRUE)==TRUE){
+    if(grepl("hour", house1[r,"stewart_time"], fixed=TRUE)==TRUE){
+      hr_min <- unlist(regmatches(house1[r,"stewart_time"], gregexpr("[[:digit:]]+", house1[r,"stewart_time"])))
+      house1[r,"stewart_mins"] <- as.numeric(hr_min[1])*60+as.numeric(hr_min[2])
+    }
+    else{
+      house1[r,"stewart_mins"] <- as.numeric(gsub(' mins','',house1[r,"stewart_time"]))
+    }
+  }
+  else{
+    house1[r,"stewart_mins"] <- NA
+  }
+}
+
+#filter footage to form usable data for value function
+house1 <- house1 %>%
+  mutate(sq_footage = as.numeric(gsub(',','',footage)))
+
+#filter footage price to form usable data for value function
+house1 <- house1 %>%
+  mutate(list_price = gsub(',','',price),
+         list_price = as.numeric(gsub("[$]",'',list_price)))
+
+house1[,"address"] <- as.character(house1[,"address"])
+house1 <- house1 %>%
+  select(address,list_price,bed,bathroom,sq_footage,hunter_mins,stewart_mins,num_acres,HOA_price)
+
+#build value functions
+#define function types
+#https://rdrr.io/github/USGS-R/smwrBase/src/R/sCurve.R
+#scurve function
+sCurve <- function(x, location=0, scale=1, shape=1) {
+  z <- scale*(x - location)
+  retval <- z/(1 + abs(z)^shape)^(1/shape)
+  #make values between 0 and 1 instead of -1 and 1
+  retval <- (retval/2)+.5
+  return(retval)
+}
+
+linear <- function(x, b = 0, m = 1){
+  y <- m*x+b
+  return(y)
+}
+
+house1 <- house1 %>%
+  mutate(bed_value = sCurve(x = bed,location = 3),
+         bathroom_value = sCurve(x = bathroom,location = 2),
+         footage_value = sCurve(x = sq_footage,location = 1500, scale = 1/100),
+         hunter_time_value = linear(hunter_mins,1,-1/max(hunter_mins,na.rm=TRUE)),
+         stewart_time_value = linear(hunter_mins,1,-1/max(stewart_mins,na.rm=TRUE)),
+         acres_value = sCurve(x = num_acres,location = .5, scale = 1/.1),
+         HOA_value = sCurve(x = HOA_price,location=300,scale=-1/50))
+
+#total value by house
+for(r in 1:nrow(house1)){
+  house1[r,"value"] <- 0
+  weight <- 0
+  if(is.na(house1[r,"bed_value"])==FALSE){
+    house1[r,"value"] <- house1[r,"value"] + house1[r,"bed_value"]*3
+    weight <- weight + 3
+  }
+  if(is.na(house1[r,"bathroom_value"])==FALSE){
+    house1[r,"value"] <- house1[r,"value"] + house1[r,"bathroom_value"]*2
+    weight <- weight + 2
+  }
+  if(is.na(house1[r,"footage_value"])==FALSE){
+    house1[r,"value"] <- house1[r,"value"] + house1[r,"footage_value"]*2
+    weight <- weight + 2
+  }
+  if(is.na(house1[r,"hunter_time_value"])==FALSE){
+    house1[r,"value"] <- house1[r,"value"] + house1[r,"hunter_time_value"]*4
+    weight <- weight + 4
+  }
+  if(is.na(house1[r,"stewart_time_value"])==FALSE){
+    house1[r,"value"] <- house1[r,"value"] + house1[r,"stewart_time_value"]*3
+    weight <- weight + 3
+  }
+  if(is.na(house1[r,"acres_value"])==FALSE){
+    house1[r,"value"] <- house1[r,"value"] + house1[r,"acres_value"]*1
+    weight <- weight + 1
+  }
+  if(is.na(house1[r,"HOA_value"])==FALSE){
+    house1[r,"value"] <- house1[r,"value"] + house1[r,"HOA_value"]*3
+    weight <- weight + 3
+  }
+  house1[r,"value"] <-  house1[r,"value"]/weight
+}
+
+write.csv(house1,"C:/Users/Karlee Scott/OneDrive - West Point/AY 21-2/SE370 Computer Aided Design/value_house.csv")
