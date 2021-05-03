@@ -2,36 +2,105 @@
 title: "FindAHouse: SE370 Project"
 output: 
   flexdashboard::flex_dashboard:
-    orientation: columns
+    orientation: rows
     vertical_layout: fill
 ---
 
 ```{r setup, include=FALSE}
 library(flexdashboard)
-library()
+library(tidyverse)
+library(leaflet)
+library(ggmap)
+library(crosstalk)
+library(plotly)
+library(DT)
+dat <- read.csv("value_house.csv", stringsAsFactors = FALSE)
+hunter_dat <- dat %>%
+  drop_na(list_price)
 ```
 
-Column {data-width=650}
+Tab A
+=======================================================================
+
+Row
 -----------------------------------------------------------------------
 
 ### Chart A
 
-```{r}
-
+```{r, include=FALSE}
+labels <- sprintf("<strong>%s</strong><br/>Value Category: %s",
+                  hunter_dat$address,
+                  hunter_dat$value_category) %>%
+  lapply(htmltools::HTML)
+getColor <- function(hunter_dat) {
+  color_vec <- lapply(hunter_dat$value_category, function(value_category) {
+    if (value_category == "high") {
+      "green"
+    } else if (value_category == "med") {
+      "orange"
+    } else {
+      "red"
+    }
+  })
+  unlist(color_vec)
+}
 ```
 
-Column {data-width=350}
+```{r}
+icons <- awesomeIcons(
+  iconColor = 'black',
+  markerColor = getColor(hunter_dat)
+)
+```
+
+```{r}
+leaflet() %>%
+  setView(lng = mean(hunter_dat$longitude),
+          lat = mean(hunter_dat$latitude),
+          zoom = 10) %>%
+  addTiles() %>%
+  addAwesomeMarkers(data = hunter_dat,
+             lng = ~longitude,
+             lat = ~latitude,
+             icon = icons) %>%
+  addLayersControl(
+    baseGroups = hunter_dat$value_category,
+    options = layersControlOptions(collapsed = FALSE)
+  )
+```
+
+Tab B
+=======================================================================
+
+Row
 -----------------------------------------------------------------------
 
 ### Chart B
 
 ```{r}
-
-```
-
-### Chart C
-
-```{r}
-
+hunter_DT <- hunter_dat %>%
+  select(address, list_price, bed, bathroom, sq_footage, hunter_mins,
+         stewart_mins, price_category, value_category)# %>%
+  # dplyr::rename("Address" = address, "List Price" = list_price,
+  #               "Bedrooms" = bed, "Bathrooms" = bathroom,
+  #               "Square Footage" = sq_footage,
+  #               "Time to Hunter" = hunter_mins,
+  #               "Time to Stewart" = stewart_mins,
+  #               "Price Category" = price_category,
+  #               "Value Category" = value_category)
+# datatable(hunter_DT, rownames = FALSE)
+# p <- hunter_dat %>%
+#   mutate(list_price = list_price/1000) %>%
+#   ggplot(aes(x = sq_footage, y = list_price, color = as.factor(value_category))) +
+#   geom_point() +
+#   theme_bw() +
+#   guides(col = guide_legend("Value Category")) +
+#   xlab("Size (ft^2)") +
+#   ylab("List Price ($1,000)")
+# ggplotly(p)
+shared_hunter <- SharedData$new(hunter_DT)
+bscols(
+  ggplot(data = shared_hunter)
+)
 ```
 
