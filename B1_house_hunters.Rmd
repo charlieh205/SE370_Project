@@ -1,0 +1,30 @@
+---
+title: "B1_House_Hunters"
+author: "Charlie Harrington and Karlee Scott"
+date: "5/3/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+```
+##Problem Statement and Background
+Karlee Scott selected Hunter Army Air Field as my next duty station. Her boyfriend selected Fort Stewart. In this project we analyzed the value and price of houses in the Savannah, Georgia area to offer recommendations that provide the most "bang for your buck".
+
+##Methodology
+
+#Get Data from Zillow (webscrape)
+We first opened a web browser and navigated to Zillow. Once on Zillow, we filtered the results to houses under $250,000 with air conditioning in the Savannah area and added commute destinations to Hunter Army Air Field and Fort Stewart. We then copied this URL and used the R function read.html from the package rvest to begin extracting data from the website. Because our end goal was to extract data from every house, we needed the URL for every house. Zillow only shows 40 houses per page of results, therefore we had to first isolate the URL for each page of results and then compile the 40 URLs for every house on each of those results pages to obtain the URLs for all of the houses. We then began to scrape data from each house. We noticed that the commute times to HUnter Army Air Field and Fort Stewart were no longer available. This was because the URL contains the filters we added for the results, but the added information about commute times is saved to your specific browser and is not contained in the URL. Thus, we looked to the package RSelenium which allows for web scraping of dynamic webpages. When using RSeleium one still uses rvest, but instead of reading a URL one may read the specific webpage that the RSelenium server actively has opened to include any inputs a user provides manually into the server. In this case, we navigated to our original Zillow filtered URL and then on the server typed in our desired commute locations. Then when we began to scrape and commute time was available for us to grab. We used a for loop and navigated to each house's URL grabbing the number of bedrooms, bathrooms, square feet, acres, commute times, and price each time. The issue with a for loop was that we scraping data systematically which caused a pop up from Zillow asking to verify that we were not a robot which would end the data collection. To fix this we added a sleep function inside the for loop which would pause between grabs for a random amount of time to trick Zillow into thinking we were humans searching their website instead of a computer. This gave us all the necessary data we needed from Zillow.
+
+#Clean Data
+
+#Find House Value
+
+#Final Data
+```{r}
+df <- read.csv("C:/Users/Karlee Scott/OneDrive - West Point/AY 21-2/SE370 Computer Aided Design/value_house.csv")
+df <- df[,-1]
+head(df)
+```
+#Make FlexDashboard

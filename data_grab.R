@@ -58,16 +58,6 @@ for(j in full_url){
 }
 
 #getting data from each house
-address <- c()
-price <- c()
-bed <- c()
-bath <- c()
-ft <- c()
-hunter_time <- c()
-stewart_time <- c()
-year <- c()
-HOA <- c()
-acres <- c()
 house <- data.frame()
 
 
@@ -356,6 +346,10 @@ for(r in 1:nrow(house1)){
     house1[r,"value_category"]<- "high"
   }
 }
+
+#value per dollar
+house1 <- house1 %>%
+  mutate(value_per_dollar = (100*value)/list_price)
 
 write.csv(house1,"C:/Users/Karlee Scott/OneDrive - West Point/AY 21-2/SE370 Computer Aided Design/value_house.csv")
 
