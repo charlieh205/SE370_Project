@@ -1,5 +1,5 @@
 ---
-title: "FindAHouse: SE370 Project"
+title: "HouseHunters"
 output: 
   flexdashboard::flex_dashboard:
     orientation: rows
@@ -12,31 +12,26 @@ library(tidyverse)
 library(leaflet)
 library(ggmap)
 library(crosstalk)
-library(plotly)
+library(d3scatter)
 library(DT)
 dat <- read.csv("value_house.csv", stringsAsFactors = FALSE)
 hunter_dat <- dat %>%
   drop_na(list_price)
 ```
 
-Tab A
+Map
 =======================================================================
 
 Row
 -----------------------------------------------------------------------
 
-### Chart A
-
-```{r, include=FALSE}
-labels <- sprintf("<strong>%s</strong><br/>Value Category: %s",
-                  hunter_dat$address,
-                  hunter_dat$value_category) %>%
-  lapply(htmltools::HTML)
-getColor <- function(hunter_dat) {
-  color_vec <- lapply(hunter_dat$value_category, function(value_category) {
-    if (value_category == "high") {
+### Map of Housing Options
+```{r}
+getColor <- function(dat) {
+  color_vec <- lapply(dat$value_category, function(value_cat) {
+    if (value_cat == "high") {
       "green"
-    } else if (value_category == "med") {
+    } else if (value_cat == "med") {
       "orange"
     } else {
       "red"
@@ -46,10 +41,45 @@ getColor <- function(hunter_dat) {
 }
 ```
 
-```{r}
-icons <- awesomeIcons(
+```{r high price, include=FALSE}
+# creating high price data, labels, and icons
+high_price_dat <- hunter_dat %>%
+  filter(price_category == "high")
+high_price_labels <- sprintf("<strong>%s</strong><br/>List Price: $%s",
+                  high_price_dat$address,
+                  scales::comma(high_price_dat$list_price)) %>%
+  lapply(htmltools::HTML)
+high_price_icons <- awesomeIcons(
   iconColor = 'black',
-  markerColor = getColor(hunter_dat)
+  markerColor = getColor(high_price_dat)
+)
+```
+
+```{r med price, include=FALSE}
+# creating medium price data, labels, and icons
+med_price_dat <- hunter_dat %>%
+  filter(price_category == "med")
+med_price_labels <- sprintf("<strong>%s</strong><br/>List Price: $%s",
+                  med_price_dat$address,
+                  scales::comma(med_price_dat$list_price)) %>%
+  lapply(htmltools::HTML)
+med_price_icons <- awesomeIcons(
+  iconColor = 'black',
+  markerColor = getColor(med_price_dat)
+)
+```
+
+```{r low price, include=FALSE}
+# creating low price data, labels, and icons
+low_price_dat <- hunter_dat %>%
+  filter(price_category == "low")
+low_price_labels <- sprintf("<strong>%s</strong><br/>List Price: $%s",
+                  low_price_dat$address,
+                  scales::comma(low_price_dat$list_price)) %>%
+  lapply(htmltools::HTML)
+low_price_icons <- awesomeIcons(
+  iconColor = 'black',
+  markerColor = getColor(low_price_dat)
 )
 ```
 
@@ -59,17 +89,40 @@ leaflet() %>%
           lat = mean(hunter_dat$latitude),
           zoom = 10) %>%
   addTiles() %>%
-  addAwesomeMarkers(data = hunter_dat,
-             lng = ~longitude,
-             lat = ~latitude,
-             icon = icons) %>%
+  addAwesomeMarkers(data = high_price_dat,
+                    lng = ~longitude,
+                    lat = ~latitude,
+                    icon = high_price_icons,
+                    popup = high_price_labels,
+                    group = "High") %>%
+  addAwesomeMarkers(data = med_price_dat,
+                    lng = ~longitude,
+                    lat = ~latitude,
+                    icon = med_price_icons,
+                    popup = med_price_labels,
+                    group = "Medium") %>%
+  addAwesomeMarkers(data = low_price_dat,
+                    lng = ~longitude,
+                    lat = ~latitude,
+                    icon = low_price_icons,
+                    popup = low_price_labels,
+                    group = "Low") %>%
   addLayersControl(
-    baseGroups = hunter_dat$value_category,
+    overlayGroups = c("High", "Medium", "Low"),
     options = layersControlOptions(collapsed = FALSE)
-  )
+  ) %>%
+  htmlwidgets::onRender("
+    function() {
+            $('.leaflet-control-layers-overlays').prepend('<label style=\"text-align:center\">Price Category</label>');
+        }    
+  ") %>%
+  addLegend(position = "bottomright",
+            title = "Value Category",
+            colors = c("Green", "Orange", "Red"),
+            labels = c("High", "Medium", "Low"))
 ```
 
-Tab B
+Analysis {vertical-layout=scroll}
 =======================================================================
 
 Row
@@ -80,7 +133,7 @@ Row
 ```{r}
 hunter_DT <- hunter_dat %>%
   select(address, list_price, bed, bathroom, sq_footage, hunter_mins,
-         stewart_mins, price_category, value_category)# %>%
+         stewart_mins, price_category, value_category, value, latitude, longitude)# %>%
   # dplyr::rename("Address" = address, "List Price" = list_price,
   #               "Bedrooms" = bed, "Bathrooms" = bathroom,
   #               "Square Footage" = sq_footage,
@@ -98,9 +151,18 @@ hunter_DT <- hunter_dat %>%
 #   xlab("Size (ft^2)") +
 #   ylab("List Price ($1,000)")
 # ggplotly(p)
+# shared_hunter <- SharedData$new(hunter_DT)
+# bscols(
+#   datatable(shared_hunter),
+#   d3scatter(data = shared_hunter, ~list_price, ~value)
+# )
+# datatable(hunter_DT, rownames = FALSE)
 shared_hunter <- SharedData$new(hunter_DT)
 bscols(
-  ggplot(data = shared_hunter)
+  datatable(shared_hunter, ),
+  d3scatter(shared_hunter, ~value, ~list_price)
 )
 ```
 
+Recommendations
+=======================================================================
