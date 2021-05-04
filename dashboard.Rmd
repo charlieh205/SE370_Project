@@ -22,11 +22,11 @@ hunter_dat <- dat %>%
 Map
 =======================================================================
 
-Row {data-height=650}
+Row {data-height=675}
 -----------------------------------------------------------------------
 
 ### Map of Housing Options
-```{r}
+```{r, include=FALSE}
 getColor <- function(dat) {
   color_vec <- lapply(dat$value_category, function(value_cat) {
     if (value_cat == "high") {
