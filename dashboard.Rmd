@@ -3,17 +3,17 @@ title: "HouseHunters"
 output: 
   flexdashboard::flex_dashboard:
     orientation: rows
-    vertical_layout: fill
+    vertical_layout: scroll
 ---
 
 ```{r setup, include=FALSE}
 library(flexdashboard)
 library(tidyverse)
 library(leaflet)
-library(ggmap)
 library(crosstalk)
 library(d3scatter)
 library(DT)
+library(highcharter)
 dat <- read.csv("value_house.csv", stringsAsFactors = FALSE)
 hunter_dat <- dat %>%
   drop_na(list_price)
@@ -22,7 +22,7 @@ hunter_dat <- dat %>%
 Map
 =======================================================================
 
-Row
+Row {data-height=650}
 -----------------------------------------------------------------------
 
 ### Map of Housing Options
@@ -30,9 +30,9 @@ Row
 getColor <- function(dat) {
   color_vec <- lapply(dat$value_category, function(value_cat) {
     if (value_cat == "high") {
-      "green"
+      "blue"
     } else if (value_cat == "med") {
-      "orange"
+      "green"
     } else {
       "red"
     }
@@ -86,7 +86,7 @@ low_price_icons <- awesomeIcons(
 ```{r}
 leaflet() %>%
   setView(lng = mean(hunter_dat$longitude),
-          lat = mean(hunter_dat$latitude),
+          lat = mean(hunter_dat$latitude) + 0.075,
           zoom = 10) %>%
   addTiles() %>%
   addAwesomeMarkers(data = high_price_dat,
@@ -118,50 +118,115 @@ leaflet() %>%
   ") %>%
   addLegend(position = "bottomright",
             title = "Value Category",
-            colors = c("Green", "Orange", "Red"),
+            colors = c("Blue", "Green", "Red"),
             labels = c("High", "Medium", "Low"))
 ```
 
-Analysis {vertical-layout=scroll}
+Analysis
 =======================================================================
 
-Row
+Row {data-height=250}
 -----------------------------------------------------------------------
 
-### Chart B
+### Data Table
 
 ```{r}
 hunter_DT <- hunter_dat %>%
-  select(address, list_price, bed, bathroom, sq_footage, hunter_mins,
-         stewart_mins, price_category, value_category, value, latitude, longitude)# %>%
-  # dplyr::rename("Address" = address, "List Price" = list_price,
-  #               "Bedrooms" = bed, "Bathrooms" = bathroom,
-  #               "Square Footage" = sq_footage,
-  #               "Time to Hunter" = hunter_mins,
-  #               "Time to Stewart" = stewart_mins,
-  #               "Price Category" = price_category,
-  #               "Value Category" = value_category)
-# datatable(hunter_DT, rownames = FALSE)
-# p <- hunter_dat %>%
-#   mutate(list_price = list_price/1000) %>%
-#   ggplot(aes(x = sq_footage, y = list_price, color = as.factor(value_category))) +
-#   geom_point() +
-#   theme_bw() +
-#   guides(col = guide_legend("Value Category")) +
-#   xlab("Size (ft^2)") +
-#   ylab("List Price ($1,000)")
-# ggplotly(p)
-# shared_hunter <- SharedData$new(hunter_DT)
-# bscols(
-#   datatable(shared_hunter),
-#   d3scatter(data = shared_hunter, ~list_price, ~value)
-# )
-# datatable(hunter_DT, rownames = FALSE)
-shared_hunter <- SharedData$new(hunter_DT)
-bscols(
-  datatable(shared_hunter, ),
-  d3scatter(shared_hunter, ~value, ~list_price)
-)
+  select(address, bed, bathroom, sq_footage, hunter_mins, stewart_mins,
+        list_price, price_category, value, value_category) %>%
+  mutate(list_price = paste0("$", scales::comma(list_price)),
+         hunter_mins = paste0(hunter_mins, " minutes"),
+         stewart_mins = paste0(stewart_mins, " minutes"),
+         value = round(value, digits = 5)) %>%
+  dplyr::rename("Address" = address,
+                "List Price" = list_price,
+                "Bedrooms" = bed,
+                "Bathrooms" = bathroom,
+                "Square Footage" = sq_footage,
+                "Time to Hunter" = hunter_mins,
+                "Time to Stewart" = stewart_mins,
+                "List Price" = list_price,
+                "Price Category" = price_category,
+                "Value Score" = value,
+                "Value Category" = value_category)
+datatable(hunter_DT,
+          height = 600,
+          rownames = FALSE)
+```
+
+Row {data-height=650 .tabset}
+-----------------------------------------------------------------------
+
+### Square Footage vs. Value
+
+```{r, fig.width=30, fig.height=12}
+hunter_dat %>%
+  mutate(price_category = factor(price_category, levels = c("low", "med", "high"))) %>%
+  ggplot(aes(x = sq_footage,
+             y = value,
+             color = price_category,
+             size = 5)) +
+  geom_point() +
+  theme_bw(base_size = 28) +
+  xlab("Square Feet") +
+  labs(color = "Price Category") +
+  guides(size = FALSE)
+```
+
+### Time to Hunter vs. Value
+
+```{r, fig.width=30, fig.height=12}
+hunter_dat %>%
+  mutate(price_category = factor(price_category, levels = c("low", "med", "high"))) %>%
+  ggplot(aes(x = hunter_mins,
+             y = value,
+             color = price_category,
+             size = 5)) +
+  geom_point() +
+  theme_bw(base_size = 28) +
+  xlab("Time to Hunter (minutes)") +
+  labs(color = "Price Category") +
+  guides(size = FALSE)
+```
+
+### Time to Stewart vs. Value
+
+```{r, fig.width=30, fig.height=12}
+hunter_dat %>%
+  mutate(price_category = factor(price_category, levels = c("low", "med", "high"))) %>%
+  ggplot(aes(x = stewart_mins,
+             y = value,
+             color = price_category,
+             size = 5)) +
+  geom_point() +
+  theme_bw(base_size = 28) +
+  xlab("Time to Stewart (minutes)") +
+  labs(color = "Price Category") +
+  guides(size = FALSE)
+```
+
+Row {data-height=650 .tabset}
+-----------------------------------------------------------------------
+
+### High Value
+
+```{r}
+high_val_dat <- hunter_dat %>%
+  filter(value_category == "high")
+```
+
+### Medium Value
+
+```{r}
+med_val_dat <- hunter_dat %>%
+  filter(value_category == "med")
+```
+
+### Low Value
+
+```{r}
+low_val_dat <- hunter_dat %>%
+  filter(value_category == "low")
 ```
 
 Recommendations
