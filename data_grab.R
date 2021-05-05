@@ -234,7 +234,7 @@ house1 <- house1 %>%
          bathroom_value = sCurve(x = bathroom,location = 2),
          footage_value = sCurve(x = sq_footage,location = 1500, scale = 1/100),
          hunter_time_value = linear(hunter_mins,1,-1/max(hunter_mins,na.rm=TRUE)),
-         stewart_time_value = linear(hunter_mins,1,-1/max(stewart_mins,na.rm=TRUE)),
+         stewart_time_value = linear(stewart_mins,1,-1/max(stewart_mins,na.rm=TRUE)),
          acres_value = sCurve(x = num_acres,location = .5, scale = 1/.1),
          HOA_value = sCurve(x = HOA_price,location=300,scale=-1/50))
 
