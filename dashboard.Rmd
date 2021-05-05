@@ -10,10 +10,7 @@ output:
 library(flexdashboard)
 library(tidyverse)
 library(leaflet)
-library(crosstalk)
-library(d3scatter)
 library(DT)
-library(highcharter)
 dat <- read.csv("value_house.csv", stringsAsFactors = FALSE)
 hunter_dat <- dat %>%
   drop_na(list_price)
@@ -205,29 +202,162 @@ hunter_dat %>%
   guides(size = FALSE)
 ```
 
-Row {data-height=650 .tabset}
------------------------------------------------------------------------
+### Bedroom Stats
 
-### High Value
+```{r, fig.width=30, fig.height=12}
+bed_value <- hunter_dat %>%
+  mutate(value_category = factor(value_category,
+                                 levels = c("low","med","high"))) %>%
+  group_by(bed, value_category) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = bed, y = n, fill = value_category)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  theme_bw(base_size = 28) +
+  scale_x_discrete(name = "Number of Bedrooms",
+                   limits = c("1","2","3","4","5","6","7","8","9")) +
+  ylab("Count") +
+  labs(fill = "Value Category")
 
-```{r}
-high_val_dat <- hunter_dat %>%
-  filter(value_category == "high")
+bed_price <- hunter_dat %>%
+  mutate(price_category = factor(price_category,
+                                 levels = c("low","med","high"))) %>%
+  group_by(bed, price_category) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = bed, y = n, fill = price_category)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  theme_bw(base_size = 28) +
+  scale_x_discrete(name = "Number of Bedrooms",
+                   limits = c("1","2","3","4","5","6","7","8","9")) +
+  ylab("Count") +
+  labs(fill = "Price Category")
+
+ggpubr::ggarrange(bed_value, bed_price, ncol = 1, nrow = 2)
 ```
 
-### Medium Value
+### Bathroom Stats
 
-```{r}
-med_val_dat <- hunter_dat %>%
-  filter(value_category == "med")
-```
+```{r, fig.width=30, fig.height=12}
+bath_value <- hunter_dat %>%
+  mutate(value_category = factor(value_category,
+                                 levels = c("low","med","high"))) %>%
+  group_by(bathroom, value_category) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = bathroom, y = n, fill = value_category)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  theme_bw(base_size = 28) +
+  scale_x_discrete(name = "Number of Bathrooms",
+                   limits = c("1","2","3","4","5")) +
+  ylab("Count") +
+  labs(fill = "Value Category")
 
-### Low Value
+bath_price <- hunter_dat %>%
+  mutate(price_category = factor(price_category,
+                                 levels = c("low","med","high"))) %>%
+  group_by(bathroom, price_category) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = bathroom, y = n, fill = price_category)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  theme_bw(base_size = 28) +
+  scale_x_discrete(name = "Number of Bathrooms",
+                   limits = c("1","2","3","4","5")) +
+  ylab("Count") +
+  labs(fill = "Price Category")
 
-```{r}
-low_val_dat <- hunter_dat %>%
-  filter(value_category == "low")
+ggpubr::ggarrange(bath_value, bath_price, ncol = 1, nrow = 2)
 ```
 
 Recommendations
 =======================================================================
+
+Row {data-height=575}
+-----------------------------------------------------------------------
+
+### Cost vs. Value Plot
+
+```{r, fig.width=32, fig.height=11}
+good_opts <- c()
+for (i in 1:nrow(hunter_dat)) {
+  test_val <- hunter_dat[i, "value"]
+  test_price <- hunter_dat[i, "list_price"]
+  test_X <- hunter_dat[i, "X"]
+  better_opts <- hunter_dat %>%
+    filter(value >= test_val, list_price <= test_price)
+  if (nrow(better_opts) <= 1) {
+    good_opts <- c(good_opts, test_X)
+  }
+}
+recs <- hunter_dat %>%
+  filter(X %in% good_opts) %>%
+  select(X, address, list_price, value)
+
+X43 <- hunter_dat %>%
+  filter(X == 43) %>%
+  select(X, address, list_price, value)
+
+X102 <- hunter_dat %>%
+  filter(X == 102) %>%
+  select(X, address, list_price, value)
+
+X169 <- hunter_dat %>%
+  filter(X == 169) %>%
+  select(X, address, list_price, value)
+
+X203 <- hunter_dat %>%
+  filter(X == 203) %>%
+  select(X, address, list_price, value)
+
+bad_text <- c(43, 102, 169, 203)
+
+good_text <- recs %>%
+  filter(!(X %in% bad_text))
+
+hunter_dat %>%
+  ggplot(aes(x = list_price, y = value, size = 5)) +
+  geom_point() +
+  theme_bw(base_size = 32) +
+  guides(size = FALSE, color = FALSE) +
+  geom_point(data = recs,
+             aes(x = list_price,
+                 y = value,
+                 size = 5,
+                 color = "red")) +
+  geom_vline(xintercept = 198100, size = 1, linetype = "dashed") +
+  geom_text(data = good_text,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -21000,
+            nudge_y = 0.01,
+            size = 7) +
+  geom_text(data = X43,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = 19000,
+            nudge_y = -0.01,
+            size = 7) +
+  geom_text(data = X102,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -21000,
+            nudge_y = 0.02,
+            size = 7) +
+  geom_text(data = X169,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -15500,
+            nudge_y = 0.06,
+            size = 7) +
+  geom_text(data = X203,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -18500,
+            nudge_y = -0.06,
+            size = 7) +
+  annotate("segment", x = 74000, xend = 75000, y = 0.38, yend = 0.415,
+           colour = "black", size = 1, alpha = 0.6, arrow = arrow()) +
+  annotate("segment", x = 60000, xend = 69200, y = 0.47, yend = 0.435,
+           colour = "black", size = 1, alpha = 0.6, arrow = arrow()) +
+  ylab("Value") +
+  xlab("List Price")
+```
+
+Row {data-height=75}
+-----------------------------------------------------------------------
+
+### Discussion
+
+This graph shows the cost versus value analysis that produces the recommended housing solutions. Anything to the right of the dashed line indicates a sub-optimal candidate, as they have a lower value for a higher price than other options available. The highlighted houses are all pareto-optimal, meaning that one may have a higher than another, but it will also have a higher cost. For each of these recommendations, there is no other house available that has a higher value for a lower price.
