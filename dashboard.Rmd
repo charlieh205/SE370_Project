@@ -130,7 +130,7 @@ Row {data-height=250}
 ```{r}
 hunter_DT <- hunter_dat %>%
   select(address, bed, bathroom, sq_footage, hunter_mins, stewart_mins,
-        list_price, price_category, value, value_category) %>%
+        list_price, value) %>%
   mutate(list_price = paste0("$", scales::comma(list_price)),
          hunter_mins = paste0(hunter_mins, " minutes"),
          stewart_mins = paste0(stewart_mins, " minutes"),
@@ -143,9 +143,7 @@ hunter_DT <- hunter_dat %>%
                 "Time to Hunter" = hunter_mins,
                 "Time to Stewart" = stewart_mins,
                 "List Price" = list_price,
-                "Price Category" = price_category,
-                "Value Score" = value,
-                "Value Category" = value_category)
+                "Value Score" = value)
 datatable(hunter_DT,
           height = 600,
           rownames = FALSE)
