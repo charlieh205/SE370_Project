@@ -288,26 +288,37 @@ recs <- hunter_dat %>%
   filter(X %in% good_opts) %>%
   select(X, address, list_price, value)
 
+X5 <- hunter_dat %>%
+  filter(X == 5) %>%
+  select(X, address, list_price, value)
+
+X42 <- hunter_dat %>%
+  filter(X == 42) %>%
+  select(X, address, list_price, value)
+ 
 X43 <- hunter_dat %>%
   filter(X == 43) %>%
   select(X, address, list_price, value)
 
-X102 <- hunter_dat %>%
-  filter(X == 102) %>%
+X57 <- hunter_dat %>%
+  filter(X == 57) %>%
   select(X, address, list_price, value)
 
-X169 <- hunter_dat %>%
-  filter(X == 169) %>%
+X79 <- hunter_dat %>%
+  filter(X == 79) %>%
   select(X, address, list_price, value)
 
-X203 <- hunter_dat %>%
-  filter(X == 203) %>%
+X112 <- hunter_dat %>%
+  filter(X == 112) %>%
   select(X, address, list_price, value)
 
-bad_text <- c(43, 102, 169, 203)
+X158 <- hunter_dat %>%
+  filter(X == 158) %>%
+  select(X, address, list_price, value)
 
-good_text <- recs %>%
-  filter(!(X %in% bad_text))
+X184 <- hunter_dat %>%
+  filter(X == 184) %>%
+  select(X, address, list_price, value)
 
 hunter_dat %>%
   ggplot(aes(x = list_price, y = value, size = 5)) +
@@ -320,34 +331,41 @@ hunter_dat %>%
                  size = 5,
                  color = "red")) +
   geom_vline(xintercept = 198100, size = 1, linetype = "dashed") +
-  geom_text(data = good_text,
+  geom_text(data = X5,
             aes(x = list_price, y = value, label = address),
-            nudge_x = -21000,
-            nudge_y = 0.01,
+            nudge_x = -19000,
+            size = 7) +
+  geom_text(data = X42,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -20000,
             size = 7) +
   geom_text(data = X43,
             aes(x = list_price, y = value, label = address),
-            nudge_x = 19000,
-            nudge_y = -0.01,
-            size = 7) +
-  geom_text(data = X102,
-            aes(x = list_price, y = value, label = address),
-            nudge_x = -21000,
-            nudge_y = 0.02,
-            size = 7) +
-  geom_text(data = X169,
-            aes(x = list_price, y = value, label = address),
-            nudge_x = -15500,
-            nudge_y = 0.06,
-            size = 7) +
-  geom_text(data = X203,
-            aes(x = list_price, y = value, label = address),
-            nudge_x = -18500,
+            nudge_x = 10000,
             nudge_y = -0.06,
             size = 7) +
-  annotate("segment", x = 74000, xend = 75000, y = 0.38, yend = 0.415,
-           colour = "black", size = 1, alpha = 0.6, arrow = arrow()) +
-  annotate("segment", x = 60000, xend = 69200, y = 0.47, yend = 0.435,
+  geom_text(data = X57,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -17500,
+            nudge_y = 0.005,
+            size = 7) +
+  geom_text(data = X79,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -18500,
+            size = 7) +
+  geom_text(data = X112,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -19750,
+            size = 7) +
+  geom_text(data = X158,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -20000,
+            size = 7) +
+  geom_text(data = X184,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -19500,
+            size = 7) +
+  annotate("segment", x = 50000, xend = 46100, y = 0.31, yend = 0.348,
            colour = "black", size = 1, alpha = 0.6, arrow = arrow()) +
   ylab("Value") +
   xlab("List Price")
