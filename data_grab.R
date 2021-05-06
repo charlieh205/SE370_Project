@@ -351,5 +351,5 @@ for(r in 1:nrow(house1)){
 house1 <- house1 %>%
   mutate(value_per_dollar = (100*value)/list_price)
 
-write.csv(house1,"C:/Users/Karlee Scott/OneDrive - West Point/AY 21-2/SE370 Computer Aided Design/value_house.csv")
+write.csv(house1,"C:/Users/Karlee Scott/OneDrive - West Point/AY 21-2/SE370 Computer Aided Design/B1_HouseHunters_folder/value_house.csv")
 
