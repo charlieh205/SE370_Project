@@ -1,0 +1,471 @@
+---
+title: "House Hunters"
+author: "Charlie Harrington and Karlee Scott"
+date: "5/11/2021"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(leaflet)
+library(DT)
+options(dplyr.summarise.inform = FALSE)
+hunter_dat <- read.csv("value_house.csv", stringsAsFactors = FALSE) %>%
+  drop_na(list_price)
+```
+# Introduction
+
+### Problem Statement and Background
+Karlee Scott selected Hunter Army Air Field as her next duty station. Her boyfriend selected Fort Stewart. In this project we analyzed the value and price of houses in the Savannah, Georgia area to offer house recommendations that provide value for a reasonable price. Our problem statement was: Which houses in Savannah, Georgia should Karlee Scott consider based on what is valuable to her and if that value is selling for a reasonable price?
+
+# Methodology
+
+### Webscrape from Zillow
+We first opened a web browser and navigated to Zillow. Once on Zillow, we filtered the results to houses under $250,000 with air conditioning in the Savannah area. The URL contained all of these filters, so no matter what computer we used to navigate to that URL the same filters would be applied. Commute destinations to Hunter Army Air Field and Fort Stewart were not contained in the URL thus we had to use a package called RSelenium which created a server that we could type in the commute destinations manually and then we could read from that source page. We used the R function read.html from the package rvest to begin extracting data from the website. Because our end goal was to extract data from every house, we needed the URL for every house. Zillow only showed 40 houses per page of results, therefore we had to first isolate the URL for each page of results and then compile the 40 URLs for every house on each of those result pages to obtain the specific URL for each house. We used a for loop and navigated to each house's URL grabbing the number of bedrooms, bathrooms, square feet, year built, acres, commute times, HOA fees, and price each time. The issue with a for loop was that by scraping data systematically we caused a pop up from Zillow asking to verify that we were not a robot which would end the data collection. To fix this we added a sleep function inside the for loop which would pause between grabs for a random amount of time to prevent Zillow from suspecting we were a robot. This gave us all the necessary data we needed from Zillow.
+
+### Clean Data
+Next we cleaned the data. This started by first inspecting our data frame. We cleaned each column one at a time. All of the variables were characters and we needed them to be numerics to eventually use in our value functions. Most of the data contained characters that did not easily translate to numerics for example for HOA fee some said "HOA: no" which numerically means zero. Another challenge was with commute times, some were in minutes and others were in hours so we had to make sure they were all in the same units. If the data pulled was incorrect for a column we replaced it with an NA. NAs neither added nor detracted from the total value of the house. The only homes we removed entirely were ones with no list price or if there was no specific address which would prevent us from plotting the location (most of these occurred with buildable plans).
+
+### Find House Value
+With the cleaned data which had numeric values for all variables: bedrooms, bathrooms, square feet, year built, acres, commute times, and HOA fees we were able to find the individual value for each aspect of interest provided. First, we had to create value functions based on what Karlee's input for each aspect of interest. Most value functions were s-curves for example from zero square feet to about 1,500 square feet there is increasing returns but once the square footage exceeds 1,500 square feet it was diminishing returns. We included a plot for the square feet value function below.
+
+```{r, include = FALSE}
+sCurve <- function(x, location=0, scale=1, shape=1) {
+  z <- scale*(x - location)
+  retval <- z/(1 + abs(z)^shape)^(1/shape)
+  #make values between 0 and 1 instead of -1 and 1
+  retval <- (retval/2)+.5
+  return(retval)
+}
+
+x <- c(1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000)
+y <- sCurve(x,location = 1500, scale = 1/100)
+plot_data <- data.frame(cbind(x,y))
+
+```
+```{r,echo=FALSE,fig.align = 'center'}
+plot_data %>%
+  ggplot(aes(x,y)) +
+  geom_point() +
+  ggtitle("Square Feet versus Value") +
+  xlab("Square Feet") +
+  ylab("Value")
+```
+
+After we found the value of each aspect of interest for each house we determined the total value of each house weighing each aspect of interest according to their relative importance provided by Karlee. We used the following equation to calculate the total value of ahouse by summing each aspect of interest's value multiplied by its respective weight and then dividing that sum by the sum of the weights.
+$$
+\frac{3(bed)+2(bath)+2(square\_feet)+4(hunter\_drive\_time)+3(stewart\_drive\_time)+acres+3(HOA\_fee)}{18}
+$$
+
+### Bin Value and Price into High, Medium, and Low
+We ultimately wanted to find houses that offered high value for a low cost. To make this easier we binned value and price into three categories: high, medium, and low. Instead of setting specific values or prices for each bin based on what we thought contintued as a high, medium, and low value or price we used percentiles instead. Low price was between \$0 and \$151,900, medium price was between \$151,900 and \$200,000%, and high value was between \$200,000 and \$250,000% (no house price exceeded $250,000). Low value was between 0 and 44%, medium value was between 44% and 55%, and high value was between 55% and 84% (no house value exceeded 84%). We show these percentiles below.
+```{r, include = FALSE}
+df <- read.csv("value_house.csv")
+df <- df[,-1]
+price_bins <- quantile(df[,"list_price"], c(.33, .66, 1), na.rm = TRUE) 
+value_bins <- quantile(df[,"value"], c(.33, .66, 1), na.rm = TRUE)  
+```
+```{r}
+price_bins
+value_bins
+```
+
+### Add Latitude and Longitude using RSelenium
+We wanted to display the houses on a map. To do so we need the latitude and longitude location of every house. Most R packages that over address to latitude and longitude conversions require access to a Google API which is very expensive. Instead we used the website https://www.latlong.net/ which takes an address as an input and outputs the corresponding latitude and longitude. This website required payment over five grabs. 250 grabs costed \$3.84. We needed to conduct 210 grabs for the 210 houses of interest. We paid the \$3.84 which also removed pop-up adds which would interupt our data collection. The image below shows what this website looks like.
+<center>
+![](latlon.png)
+</center>
+We discussed RSelenium previously which allowed us to manually change aspects of our server and scrape from the website with those additional inputs. Although we could have manually typed each address into the browser and scraped the latitude and longitude, this would take a while. Instead, RSelenium allows users to use R code to interact with a website rather than a user manually iteracting with the website. In our case, we had RSelenium type in the address for a house in the Place Name box, click the Find button, clear the Place Name box and repeat for all 210 houses while webscraping the latitude and longitude for each repetition and adding them to our data frame. We included a snippet of the R code that performed these actions below.
+```{r, eval=FALSE}
+rD <- rsDriver(browser="firefox", port = 2314L, geckover = "latest")
+remDr <- rD[["client"]]
+URL <-"https://www.latlong.net/"
+remDr$navigate(URL)
+#log into my account
+for(r in 1:nrow(house1)){
+  print(r)
+  randsleep <- sample(seq(1, 2, by = 0.01), 1)
+  Sys.sleep(randsleep)
+  
+  address_field <- remDr$findElement(using = 'xpath', value = '//*[@id="place"]')
+  address_field$sendKeysToElement(list(as.character(house1[r,"address"])))
+  
+  find <- remDr$findElement(using = 'xpath', value = '//*[@id="btnfind"]')
+  #https://stackoverflow.com/questions/51887807/click-button-via-rselenium
+  #how to click a button
+  find$clickElement()
+  
+  latitude <- remDr$findElement(using = 'xpath', value = '//*[@id="lat"]')
+  #https://stackoverflow.com/questions/46021890/rselenium-get-text-from-result-form
+  #how to get the value from an element
+  latitude <- latitude$getElementAttribute("value")
+  
+  longitude <- remDr$findElement(using = 'xpath', value = '//*[@id="lng"]')
+  longitude <- longitude$getElementAttribute("value")
+  
+  address_field <- remDr$findElement(using = 'xpath', value = '//*[@id="place"]')
+  #https://stackoverflow.com/questions/51072341/rselenium-clear-input-field/51074636
+  #how to clear input
+  address_field$clearElement()
+  
+  house1[r,"latitude"] <- as.numeric(latitude[[1]])
+  house1[r,"longitude"] <- as.numeric(longitude[[1]])
+}
+```
+
+### Final Data
+We included the first five rows of the final data in the table below. This dataframe contains all of the cleaned data, the added latitude and longitudes, the total value for each house, the value and price bins, as well as a column with value per dollar.
+```{r, echo=FALSE}
+head(df)
+```
+# Results and Analysis
+
+The analysis of the available housing options was done in three parts. The first part was a Leaflet map this gives a sense of the geography and locations of the available places. Second was an exploratory analysis of the different variables. The last part was a cost versus total value analysis.
+
+### Map of Housing Options
+
+The Leaflet map below is an interactive map that shows all of the available houses and their locations. The color of the pin corresponds to the value category of the house, either "High", "Medium", or "Low". The legend can be seen in the lower right corner. The map can also filter for pricing categories using the selector in the upper right corner. Clicking on a data point will show a popup for the house with its address and list price.
+
+```{r, include=FALSE}
+getColor <- function(dat) {
+  color_vec <- lapply(dat$value_category, function(value_cat) {
+    if (value_cat == "high") {
+      "blue"
+    } else if (value_cat == "med") {
+      "green"
+    } else {
+      "red"
+    }
+  })
+  unlist(color_vec)
+}
+```
+
+```{r high price, include=FALSE}
+# creating high price data, labels, and icons
+high_price_dat <- hunter_dat %>%
+  filter(price_category == "high")
+high_price_labels <- sprintf("<strong>%s</strong><br/>List Price: $%s",
+                  high_price_dat$address,
+                  scales::comma(high_price_dat$list_price)) %>%
+  lapply(htmltools::HTML)
+high_price_icons <- awesomeIcons(
+  iconColor = 'black',
+  markerColor = getColor(high_price_dat)
+)
+```
+
+```{r med price, include=FALSE}
+# creating medium price data, labels, and icons
+med_price_dat <- hunter_dat %>%
+  filter(price_category == "med")
+med_price_labels <- sprintf("<strong>%s</strong><br/>List Price: $%s",
+                  med_price_dat$address,
+                  scales::comma(med_price_dat$list_price)) %>%
+  lapply(htmltools::HTML)
+med_price_icons <- awesomeIcons(
+  iconColor = 'black',
+  markerColor = getColor(med_price_dat)
+)
+```
+
+```{r low price, include=FALSE}
+# creating low price data, labels, and icons
+low_price_dat <- hunter_dat %>%
+  filter(price_category == "low")
+low_price_labels <- sprintf("<strong>%s</strong><br/>List Price: $%s",
+                  low_price_dat$address,
+                  scales::comma(low_price_dat$list_price)) %>%
+  lapply(htmltools::HTML)
+low_price_icons <- awesomeIcons(
+  iconColor = 'black',
+  markerColor = getColor(low_price_dat)
+)
+```
+
+```{r, echo=FALSE, fig.width=10, fig.align='center'}
+leaflet() %>%
+  setView(lng = mean(hunter_dat$longitude),
+          lat = mean(hunter_dat$latitude) + 0.075,
+          zoom = 9.4) %>%
+  addTiles() %>%
+  addAwesomeMarkers(data = high_price_dat,
+                    lng = ~longitude,
+                    lat = ~latitude,
+                    icon = high_price_icons,
+                    popup = high_price_labels,
+                    group = "High") %>%
+  addAwesomeMarkers(data = med_price_dat,
+                    lng = ~longitude,
+                    lat = ~latitude,
+                    icon = med_price_icons,
+                    popup = med_price_labels,
+                    group = "Medium") %>%
+  addAwesomeMarkers(data = low_price_dat,
+                    lng = ~longitude,
+                    lat = ~latitude,
+                    icon = low_price_icons,
+                    popup = low_price_labels,
+                    group = "Low") %>%
+  addLayersControl(
+    overlayGroups = c("High", "Medium", "Low"),
+    options = layersControlOptions(collapsed = FALSE)
+  ) %>%
+  htmlwidgets::onRender("
+    function() {
+            $('.leaflet-control-layers-overlays').prepend('<label style=\"text-align:center\">Price Category</label>');
+        }    
+  ") %>%
+  addLegend(position = "bottomright",
+            title = "Value Category",
+            colors = c("Blue", "Green", "Red"),
+            labels = c("High", "Medium", "Low"))
+```
+
+## Exploratory Analysis
+
+The graphs below and the analysis conducted on them represent the exploratory analysis that was conducted to gain a better understanding of the solution space. It also serves as a sensitivity analysis of sorts. Understanding the impact of a certain category on the overall value could inform the decision maker on whether a greater weight for that variable would yield in a different recommendation.
+
+### Square Footage vs. Value
+
+```{r, warning=FALSE, echo=FALSE, fig.width=30, fig.height=12, fig.align='center'}
+hunter_dat %>%
+  mutate(price_category = factor(price_category, levels = c("low", "med", "high"))) %>%
+  ggplot(aes(x = sq_footage,
+             y = value,
+             color = price_category,
+             size = 5)) +
+  geom_point() +
+  theme_bw(base_size = 28) +
+  xlab("Square Feet") +
+  labs(color = "Price Category") +
+  guides(size = FALSE)
+```
+
+This plot demonstrates the behavior that we would expect. In general, as the square footage of the house increases, so does its overall value. There are a few houses that have markedly lower value sores than what would be expected, but not enough to suggest that the recommended options would change significanty with lower or higher weight on square footage. For these locations, they must underperform in other areas. The pricing categories also follow a behavior that we would expect. In general, the lower priced homes are all on the left side of the graph, meaning they have lower square footage. This makes sense, as houses generally increase in price with size. There are a couple of standout options, however, such as one low-priced house that has a very high square footage and value. Additionally, the house with the highest square footage and value is a medium-priced house. These standouts will likely result in recommendations following the cost versus value analysis.
+
+### Time to Hunter vs. Value
+
+```{r, warning=FALSE, echo=FALSE, fig.width=30, fig.height=12, fig.align='center'}
+hunter_dat %>%
+  mutate(price_category = factor(price_category, levels = c("low", "med", "high"))) %>%
+  ggplot(aes(x = hunter_mins,
+             y = value,
+             color = price_category,
+             size = 5)) +
+  geom_point() +
+  theme_bw(base_size = 28) +
+  xlab("Time to Hunter (minutes)") +
+  labs(color = "Price Category") +
+  guides(size = FALSE)
+```
+
+The first thing to note in this graph is that there are data points missing. This is the result of many of these homes having not having a time from Hunter Army Airfield available. It is important to note that not having this data did not hurt the total value score of these homes as the score is normalized. The data demonstrates the general behavior that we would expect. The more time, the lower the value. This relationship does not appear to be particularly strong, however, which is suprising given that it has the highest weight in the total value score. A possible explanation for this is that houses that are further away make up for it in other areas. We also see a random scattering of price categories across the graph, meaning that there are options within all price categories at varying distances away from Hunter.
+
+### Time to Stewart vs. Value
+
+```{r, warning=FALSE, echo=FALSE, fig.width=30, fig.height=12, fig.align='center'}
+hunter_dat %>%
+  mutate(price_category = factor(price_category, levels = c("low", "med", "high"))) %>%
+  ggplot(aes(x = stewart_mins,
+             y = value,
+             color = price_category,
+             size = 5)) +
+  geom_point() +
+  theme_bw(base_size = 28) +
+  xlab("Time to Stewart (minutes)") +
+  labs(color = "Price Category") +
+  guides(size = FALSE)
+```
+
+The results of this graph are very similar to that of the time to Hunter, although we can see that there is more data available for this variable. Again, we see a general decrease in value with a greater time to Stewart, though not a particularly strong one. This highlights a possible reason for the relatively weak relationships we see in this graph as well as the previous one - as the time to Hunter decreases, the time to Stewart increases, and vice versa. We can also see an even distribution of price categories across the plot, meaning there are all price options available at the different distances.
+
+### Bedroom Stats
+
+```{r, warning=FALSE, echo=FALSE, fig.width=30, fig.height=12, fig.align='center'}
+bed_value <- hunter_dat %>%
+  mutate(value_category = factor(value_category,
+                                 levels = c("low","med","high"))) %>%
+  group_by(bed, value_category) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = bed, y = n, fill = value_category)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  theme_bw(base_size = 28) +
+  scale_x_discrete(name = "Number of Bedrooms",
+                   limits = c("1","2","3","4","5","6","7","8","9")) +
+  ylab("Count") +
+  labs(fill = "Value Category")
+
+bed_price <- hunter_dat %>%
+  mutate(price_category = factor(price_category,
+                                 levels = c("low","med","high"))) %>%
+  group_by(bed, price_category) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = bed, y = n, fill = price_category)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  theme_bw(base_size = 28) +
+  scale_x_discrete(name = "Number of Bedrooms",
+                   limits = c("1","2","3","4","5","6","7","8","9")) +
+  ylab("Count") +
+  labs(fill = "Price Category")
+
+ggpubr::ggarrange(bed_value, bed_price, ncol = 1, nrow = 2)
+```
+
+These two plots serve as a sensitivity analysis for the number of bedrooms. In other words, if we wanted to look exclusively at houses with a specific number of bedrooms, would that limit our options in terms of value and price category? We can see that would indeed occur for certain values. The large majority of houses with higher numbers of bedrooms are in the medium and high value and price categories, which makes sense. These charts also highlight at least one house that has one bedroom, a low value category, and a high price category. It is likely that this will not be a final recommendation. Conversely, there is at least one house with eight bedrooms, a high value category, and a medium price category.
+
+### Bathroom Stats
+
+```{r, warning=FALSE, echo=FALSE, fig.width=30, fig.height=12, fig.align='center'}
+bath_value <- hunter_dat %>%
+  mutate(value_category = factor(value_category,
+                                 levels = c("low","med","high"))) %>%
+  group_by(bathroom, value_category) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = bathroom, y = n, fill = value_category)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  theme_bw(base_size = 28) +
+  scale_x_discrete(name = "Number of Bathrooms",
+                   limits = c("1","2","3","4","5")) +
+  ylab("Count") +
+  labs(fill = "Value Category")
+
+bath_price <- hunter_dat %>%
+  mutate(price_category = factor(price_category,
+                                 levels = c("low","med","high"))) %>%
+  group_by(bathroom, price_category) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = bathroom, y = n, fill = price_category)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  theme_bw(base_size = 28) +
+  scale_x_discrete(name = "Number of Bathrooms",
+                   limits = c("1","2","3","4","5")) +
+  ylab("Count") +
+  labs(fill = "Price Category")
+
+ggpubr::ggarrange(bath_value, bath_price, ncol = 1, nrow = 2)
+```
+
+These two graphs show very similar results to that of the bedrooms. We see houses with higher number of bathrooms fall into the high value and price categories, in general. We also can see that there is at least one house with four bathrooms, a high value, and a low price. A house with a high value and low cost such as this will likely be a recommended solution.
+
+### Cost vs. Value Plot
+
+```{r, echo=FALSE, fig.width=32, fig.height=16, fig.align='center'}
+good_opts <- c()
+for (i in 1:nrow(hunter_dat)) {
+  test_val <- hunter_dat[i, "value"]
+  test_price <- hunter_dat[i, "list_price"]
+  test_X <- hunter_dat[i, "X"]
+  better_opts <- hunter_dat %>%
+    filter(value >= test_val, list_price <= test_price)
+  if (nrow(better_opts) <= 1) {
+    good_opts <- c(good_opts, test_X)
+  }
+}
+recs <- hunter_dat %>%
+  filter(X %in% good_opts) %>%
+  select(X, address, list_price, value)
+
+X5 <- hunter_dat %>%
+  filter(X == 5) %>%
+  select(X, address, list_price, value)
+
+X42 <- hunter_dat %>%
+  filter(X == 42) %>%
+  select(X, address, list_price, value)
+ 
+X43 <- hunter_dat %>%
+  filter(X == 43) %>%
+  select(X, address, list_price, value)
+
+X57 <- hunter_dat %>%
+  filter(X == 57) %>%
+  select(X, address, list_price, value)
+
+X79 <- hunter_dat %>%
+  filter(X == 79) %>%
+  select(X, address, list_price, value)
+
+X112 <- hunter_dat %>%
+  filter(X == 112) %>%
+  select(X, address, list_price, value)
+
+X158 <- hunter_dat %>%
+  filter(X == 158) %>%
+  select(X, address, list_price, value)
+
+X184 <- hunter_dat %>%
+  filter(X == 184) %>%
+  select(X, address, list_price, value)
+
+hunter_dat %>%
+  ggplot(aes(x = list_price, y = value, size = 5)) +
+  geom_point() +
+  theme_bw(base_size = 32) +
+  guides(size = FALSE, color = FALSE) +
+  geom_point(data = recs,
+             aes(x = list_price,
+                 y = value,
+                 size = 5,
+                 color = "red")) +
+  geom_vline(xintercept = 198100, size = 1, linetype = "dashed") +
+  geom_text(data = X5,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -19000,
+            size = 7) +
+  geom_text(data = X42,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -20000,
+            size = 7) +
+  geom_text(data = X43,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = 10000,
+            nudge_y = -0.06,
+            size = 7) +
+  geom_text(data = X57,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -17500,
+            nudge_y = 0.005,
+            size = 7) +
+  geom_text(data = X79,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -18500,
+            size = 7) +
+  geom_text(data = X112,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -19750,
+            size = 7) +
+  geom_text(data = X158,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -20000,
+            size = 7) +
+  geom_text(data = X184,
+            aes(x = list_price, y = value, label = address),
+            nudge_x = -19500,
+            size = 7) +
+  annotate("segment", x = 50000, xend = 46100, y = 0.31, yend = 0.348,
+           colour = "black", size = 1, alpha = 0.6, arrow = arrow()) +
+  ylab("Value") +
+  xlab("List Price")
+```
+
+This graph shows the cost versus value analysis that produces the recommended housing solutions. The dashed line partially represents the efficient frontier - anything to the right of it is a sub-optimal candidate, as they have a lower value for a higher price than other options available. There are other candidates to the left of the line that fall within this sub-optimal cateogry as well, however. The highlighted houses are all pareto-optimal, meaning that one may have a higher than another, but it will also have a higher cost. For each of these recommendations, there is no other house available that has a higher value for a lower price.
+
+# Conclusion and Recommendations
+
+```{r, echo=FALSE}
+hunter_dat %>%
+  filter(X %in% recs$X) %>%
+  select(address, list_price, price_category, value, value_category) %>%
+  mutate(list_price = paste0("$", scales::comma(list_price))) %>%
+  rename("Address" = address,
+         "List Price" = list_price,
+         "Price Category" = price_category,
+         "Value" = value,
+         "Value Category" = value_category) %>%
+  datatable()
+```
+
+This table shows all of the recommended options for Karlee to choose from, as identified by the cost versus value analysis in the previous section. Ultimately, the decision lies in how much she is willing to pay. If Karlee wants a house with higher value, then she will have to pay more. Of note, none of these recommendations fall within the high price category, meaning that Karlee has options that will satisfy her requirements and are cheaper in comparison with other houses on the market.
