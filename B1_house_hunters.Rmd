@@ -20,8 +20,6 @@ hunter_dat <- read.csv("value_house.csv", stringsAsFactors = FALSE) %>%
 ### Problem Statement and Background
 Karlee Scott selected Hunter Army Air Field as her next duty station. Her boyfriend selected Fort Stewart. In this project we analyzed the value and price of houses in the Savannah, Georgia area to offer house recommendations that provide value for a reasonable price. Our problem statement was: Which houses in Savannah, Georgia should Karlee Scott consider based on what is valuable to her and if that value is selling for a reasonable price?
 
-### Bottom Line Up Front
-
 # Methodology
 
 ### Webscrape from Zillow
